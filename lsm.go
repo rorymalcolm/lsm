@@ -21,20 +21,19 @@ func New() LSMTree {
 	}
 }
 
-func (l *LSMTree) Insert(k []byte, v []byte) {
+func (l *LSMTree) Insert(k, v []byte) {
 	l.mu.RLock()
+	newSize := l.volatile.set(k, &entry{value: v})
+	needRotate := newSize > int(MEMTABLE_LIMIT)
 	mt := l.volatile
 	l.mu.RUnlock()
-	mt.set(k, &entry{
-		value: v,
-	})
 
-	if mt.size > int(MEMTABLE_LIMIT.Bytes()) {
+	if needRotate {
 		l.maybeRotate(mt)
 	}
 }
 
-func (l *LSMTree) Get(k []byte) (*[]byte, bool) {
+func (l *LSMTree) Get(k []byte) ([]byte, bool) {
 	l.mu.RLock()
 	vol := l.volatile
 	imms := l.immutable
@@ -43,11 +42,12 @@ func (l *LSMTree) Get(k []byte) (*[]byte, bool) {
 	if !found {
 		for i := len(imms) - 1; i >= 0; i-- {
 			if e, ok := imms[i].get(k); ok {
-				return &e.value, true
+				return e.value, true
 			}
 		}
+		return nil, false
 	}
-	return &val.value, true
+	return val.value, true
 }
 
 func (l *LSMTree) Delete(k []byte) {
@@ -58,7 +58,7 @@ func (l *LSMTree) maybeRotate(expected *memtable) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	if l.volatile == expected {
+	if l.volatile != expected {
 		// in this scenario a competing process has already rotated
 		return
 	}

@@ -21,23 +21,20 @@ func newMemtable() *memtable {
 	return &memtable{list: skiplist.New(skiplist.BytesAsc)}
 }
 
-func (m *memtable) set(k []byte, e *entry) {
+func (m *memtable) set(k []byte, e *entry) int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.list.Set(k, e)
 	m.size += len(k) + len(e.value)
+	return m.size
 }
 
-func (m *memtable) get(k []byte) (e entry, ok bool) {
+func (m *memtable) get(k []byte) (*entry, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	v, ok := m.list.GetValue(k)
 	if !ok {
-		return entry{}, false
+		return nil, false
 	}
-	e, ok = v.(entry)
-	if !ok || e.tombstone {
-		return entry{}, false
-	}
-	return v.(entry), true
+	return v.(*entry), true
 }

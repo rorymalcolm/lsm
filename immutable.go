@@ -1,6 +1,10 @@
 package lsm
 
-import "github.com/huandu/skiplist"
+import (
+	"iter"
+
+	"github.com/huandu/skiplist"
+)
 
 type immutableMemtable struct {
 	list *skiplist.SkipList
@@ -25,4 +29,18 @@ func (im *immutableMemtable) get(k []byte) (entry, bool) {
 
 func (im *immutableMemtable) iter() *skiplist.Element {
 	return im.list.Front()
+}
+
+func (m *immutableMemtable) Len() int {
+	return m.list.Len()
+}
+
+func (m *immutableMemtable) All() iter.Seq2[[]byte, []byte] {
+	return func(yield func([]byte, []byte) bool) {
+		for e := m.list.Front(); e != nil; e = e.Next() {
+			if !yield(e.Key().([]byte), e.Value.([]byte)) {
+				return
+			}
+		}
+	}
 }
